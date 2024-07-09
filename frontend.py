@@ -1,134 +1,144 @@
 # frontend.py
 
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, messagebox
 from backend import LLMBackend
+import customtkinter as ctk
 
-class LLMUI:
-    def __init__(self, master):
-        self.master = master
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("dark-blue")
+
+class LLMUI(ctk.CTk):
+    def __init__(self):
+        super().__init__()
         self.backend = LLMBackend()
         self.backend.initialize()
 
-        master.title("LLM Question Answering")
-        master.geometry("800x600")
-        master.configure(bg='#2b2b2b')
+        self.title("PDF Question Answering")
+        self.geometry("1000x600")
 
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
         self.create_widgets()
+        self.question_entry.bind("<Return>", self.ask_question)
 
     def create_widgets(self):
-        # File Upload
-        upload_frame = tk.Frame(self.master, bg='#2b2b2b')
-        upload_frame.pack(pady=10)
-
-        upload_button = tk.Button(upload_frame, text="Upload PDF", command=self.upload_pdf, bg='#3c3f41', fg='white')
-        upload_button.pack(side=tk.LEFT, padx=5)
-
-        self.file_label = tk.Label(upload_frame, text="No file selected", bg='#2b2b2b', fg='white')
-        self.file_label.pack(side=tk.LEFT)
-
-        # PDF Status Label
-        self.pdf_status_label = tk.Label(self.master, text="No PDF uploaded", bg='#2b2b2b', fg='white')
-        self.pdf_status_label.pack(pady=5)
-
-        # Progress Bar
-        self.progress_frame = tk.Frame(self.master, bg='#2b2b2b')
-        self.progress_frame.pack(pady=10, padx=10, fill=tk.X)
-
-        self.progress_bar = ttk.Progressbar(self.progress_frame, length=300, mode='determinate')
-        self.progress_bar.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
-        self.progress_label = tk.Label(self.progress_frame, text="", bg='#2b2b2b', fg='white')
-        self.progress_label.pack(side=tk.LEFT, padx=5)
-
-        # LLM Selection
-        llm_frame = tk.Frame(self.master, bg='#2b2b2b')
-        llm_frame.pack(pady=10)
-
-        tk.Label(llm_frame, text="Select LLM:", bg='#2b2b2b', fg='white').pack(side=tk.LEFT, padx=5)
+        # Sidebar
+        self.sidebar_frame = ctk.CTkFrame(self, width=140, corner_radius=0)
+        self.sidebar_frame.grid(row=0, column=0, rowspan=4, sticky="nsew")
+        self.sidebar_frame.grid_rowconfigure(4, weight=1)
+        
+        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="PDF Q&A", font=ctk.CTkFont(size=20, weight="bold"))
+        self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
+        
+        self.upload_button = ctk.CTkButton(self.sidebar_frame, text="Upload PDF", command=self.upload_pdf)
+        self.upload_button.grid(row=1, column=0, padx=20, pady=10)
+        
+        self.pdf_status_label = ctk.CTkLabel(self.sidebar_frame, text="No PDF uploaded")
+        self.pdf_status_label.grid(row=2, column=0, padx=20, pady=(10, 0))
+        
+        # Create a spacer frame to push the following widgets to the bottom
+        spacer = ctk.CTkFrame(self.sidebar_frame, fg_color="transparent")
+        spacer.grid(row=3, column=0, sticky="nsew")
+        self.sidebar_frame.grid_rowconfigure(3, weight=1)
+        
+        self.llm_label = ctk.CTkLabel(self.sidebar_frame, text="Select LLM:")
+        self.llm_label.grid(row=4, column=0, padx=20, pady=(10, 0), sticky="sw")
+        
         self.llm_var = tk.StringVar(value="Llama 2")
-        llm_dropdown = ttk.Combobox(llm_frame, textvariable=self.llm_var, values=["Llama 2"], state="readonly")
-        llm_dropdown.pack(side=tk.LEFT)
+        self.llm_dropdown = ctk.CTkOptionMenu(self.sidebar_frame, values=["Llama 2"], variable=self.llm_var)
+        self.llm_dropdown.grid(row=5, column=0, padx=20, pady=(0, 20), sticky="sw")
 
-        # Question Input
-        input_frame = tk.Frame(self.master, bg='#2b2b2b')
-        input_frame.pack(pady=10, padx=10, fill=tk.X)
+        # Main area
+        self.main_frame = ctk.CTkFrame(self, corner_radius=0)
+        self.main_frame.grid(row=0, column=1, rowspan=4, sticky="nsew", padx=20, pady=20)
+        self.main_frame.grid_columnconfigure(0, weight=1)
+        self.main_frame.grid_rowconfigure(0, weight=1)
 
-        self.question_entry = tk.Entry(input_frame, bg='#3c3f41', fg='white', insertbackground='white')
-        self.question_entry.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        # Chat area
+        self.chat_frame = ctk.CTkScrollableFrame(self.main_frame)
+        self.chat_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=(10, 0))
+        self.chat_frame.grid_columnconfigure(0, weight=1)
 
-        self.ask_button = tk.Button(input_frame, text="Ask", command=self.ask_question, bg='#3c3f41', fg='white')
-        self.ask_button.pack(side=tk.RIGHT, padx=5)
+        # Input area
+        self.input_frame = ctk.CTkFrame(self.main_frame)
+        self.input_frame.grid(row=1, column=0, sticky="sew", padx=10, pady=10)
+        self.input_frame.grid_columnconfigure(0, weight=1)
 
-        # Answer Output
-        output_frame = tk.Frame(self.master, bg='#2b2b2b')
-        output_frame.pack(pady=10, padx=10, expand=True, fill=tk.BOTH)
+        self.question_entry = ctk.CTkEntry(self.input_frame, placeholder_text="Type your question here...")
+        self.question_entry.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+        self.question_entry.bind("<Return>", self.ask_question)
 
-        self.answer_text = tk.Text(output_frame, wrap=tk.WORD, bg='#3c3f41', fg='white', state='disabled')
-        self.answer_text.pack(expand=True, fill=tk.BOTH)
+        self.ask_button = ctk.CTkButton(self.input_frame, text="Ask", width=100, command=self.ask_question)
+        self.ask_button.grid(row=0, column=1)
 
     def upload_pdf(self):
         file_path = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
         if file_path:
-            self.file_label.config(text=file_path.split("/")[-1])
-            self.pdf_status_label.config(text="Processing PDF...", fg='yellow')
+            self.pdf_status_label.configure(text="Processing PDF...")
             self.backend.load_pdf(file_path, self.update_progress, self.pdf_processing_complete)
 
     def update_progress(self, value, message):
-        self.progress_bar['value'] = value
-        self.progress_label.config(text=message)
-        self.master.update_idletasks()
+        self.pdf_status_label.configure(text=message)
 
     def pdf_processing_complete(self, success, message):
         if success:
-            self.pdf_status_label.config(text=message, fg='green')
+            self.pdf_status_label.configure(text=message)
             self.setup_rag_pipeline()
         else:
-            self.pdf_status_label.config(text=message, fg='red')
-        self.master.update_idletasks()
+            self.pdf_status_label.configure(text=message)
+            messagebox.showerror("Error", message)
 
     def setup_rag_pipeline(self):
-        try:
-            self.pdf_status_label.config(text="Setting up RAG pipeline...", fg='yellow')
-            self.master.update_idletasks()
-            self.backend.setup_rag_pipeline(self.stream_callback)
-            self.pdf_status_label.config(text="RAG pipeline set up successfully", fg='green')
-        except Exception as e:
-            self.pdf_status_label.config(text=f"Error setting up RAG pipeline: {str(e)}", fg='red')
-        self.master.update_idletasks()
+        self.pdf_status_label.configure(text="Setting up RAG pipeline...")
+        success, message = self.backend.setup_rag_pipeline(self.stream_callback)
+        if success:
+            self.pdf_status_label.configure(text=message)
+        else:
+            self.pdf_status_label.configure(text=message)
+            messagebox.showerror("Error", message)
 
     def stream_callback(self, token):
-        self.answer_text.config(state='normal')
-        self.answer_text.insert(tk.END, token)
-        self.answer_text.see(tk.END)
-        self.answer_text.config(state='disabled')
-        self.master.update_idletasks()
+        if not hasattr(self, 'current_message'):
+            self.current_message = ctk.CTkTextbox(self.chat_frame, height=100, wrap="word", state="normal")
+            self.current_message.grid(sticky="ew", padx=5, pady=5)
+        self.current_message.configure(state="normal")
+        self.current_message.insert(tk.END, token)
+        self.current_message.see(tk.END)
+        self.current_message.configure(state="disabled")
 
-    def ask_question(self):
+    def ask_question(self, event=None):
+        if event:
+            event.preventDefault()
         question = self.question_entry.get()
         if question:
-            self.ask_button.config(state='disabled')
-            self.answer_text.config(state='normal')
-            self.answer_text.delete(1.0, tk.END)
-            self.answer_text.insert(tk.END, "Processing your question...\n\n")
-            self.answer_text.config(state='disabled')
-            self.master.update_idletasks()
+            if not self.backend.is_pdf_processed:
+                messagebox.showwarning("Warning", "Please upload and process a PDF first.")
+                return
+
+            self.ask_button.configure(state="disabled")
+            
+            question_label = ctk.CTkTextbox(self.chat_frame, height=30, wrap="word")
+            question_label.insert("1.0", f"Q: {question}")
+            question_label.configure(state="disabled")
+            question_label.grid(sticky="ew", padx=5, pady=5)
+
+            self.current_message = ctk.CTkTextbox(self.chat_frame, height=100, wrap="word")
+            self.current_message.grid(sticky="ew", padx=5, pady=5)
+            
             self.backend.ask_question(question, self.process_answer)
         else:
-            self.answer_text.config(state='normal')
-            self.answer_text.delete(1.0, tk.END)
-            self.answer_text.insert(tk.END, "Please enter a question.")
-            self.answer_text.config(state='disabled')
-
+            messagebox.showwarning("Warning", "Please enter a question.")
+        
+        self.question_entry.delete(0, 'end')
+    
     def process_answer(self, answer):
-        self.answer_text.config(state='normal')
-        self.answer_text.delete(1.0, tk.END)
-        self.answer_text.insert(tk.END, answer)
-        self.answer_text.config(state='disabled')
-        self.ask_button.config(state='normal')
-        self.master.update_idletasks()
+        self.current_message.configure(state="normal")
+        self.current_message.delete("1.0", tk.END)
+        self.current_message.insert(tk.END, answer)
+        self.current_message.configure(state="disabled")
+        self.ask_button.configure(state="normal")
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = LLMUI(root)
-    root.mainloop()
+    app = LLMUI()
+    app.mainloop()
